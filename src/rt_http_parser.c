@@ -206,6 +206,19 @@ static rt_parse_result parse_headers(
     return RT_PARSE_OK;
 }
 
+static void init_req_data(
+    rt_req_data *data
+) {
+    data->method = NULL;
+    data->method_len = 0;
+    data->path = NULL;
+    data->path_len = 0;
+    data->version = NULL;
+    data->version_len = 0;
+
+    data->header_count = 0;
+}
+
 // --------------------------------------------------
 // PUBLIC
 // --------------------------------------------------
@@ -226,6 +239,9 @@ rt_parse_result rt_parse_req(
     rt_req_data *data
 ) {
     CHECK_EOF(); // Check for empty request
+
+    // Init request data with default values
+    init_req_data(data);
 
     // Parse method
     rt_parse_result ret = parse_token(p, &data->method, &data->method_len, ' ');

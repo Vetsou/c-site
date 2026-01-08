@@ -6,7 +6,7 @@
  *
  * Returns:
  *   SUCCESS: Socket file descriptor
- *   FAILURE: -1 (errno is set)
+ *   FAILURE: -1 / INVALID_SOCKET (errno is set)
  */
 rt_socket rt_socketTCP() {
     rt_socket fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -33,7 +33,7 @@ int32_t rt_bind_socket(
     addr.sin_port = htons(port);
     addr.sin_addr.s_addr = INADDR_ANY;
 
-    return bind(fd, (struct sockaddr*)&addr, sizeof(addr));
+    return bind(fd, (struct sockaddr*)&addr, sizeof(struct sockaddr));
 }
 
 /**

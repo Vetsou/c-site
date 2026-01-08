@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <netinet/in.h>
 
+#define INVALID_SOCKET (-1)
+
 typedef int rt_socket;
 typedef struct sockaddr_in rt_addr_in;
 
