@@ -35,19 +35,3 @@ int32_t rt_bind_socket(
 
     return bind(fd, (struct sockaddr*)&addr, sizeof(struct sockaddr));
 }
-
-/**
- * Closes an open socket.
- *
- * Parameters:
- *   fd - Socket file descriptor to close
- *
- * Returns:
- *   SUCCESS: 0
- *   FAILURE: -1 (errno is set)
- */
-int32_t rt_close_socket(
-    rt_socket fd
-) {
-    return close(fd);
-}

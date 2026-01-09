@@ -4,14 +4,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/**
- * Set maximum HTTP request size for safety reasons.
- * Default is 4KB.
- */
-#ifndef HTTP_MAX_REQ_SIZE
-#define HTTP_MAX_REQ_SIZE (4*1024)
-#endif // HTTP_MAX_REQ_SIZE
-
 #define HTTP_MAX_HEADER_LEN 64
 
 /**

@@ -16,6 +16,6 @@ typedef struct {
 } rt_logger;
 
 void rt_init_logger(rt_logger *logger, const char *log_filepath);
-void rt_log(rt_logger *logger, rt_log_level level, const char *msg_format, ...);
+void rt_log(const rt_logger *logger, rt_log_level level, const char *msg_format, ...);
 
 #endif // _RT_LOGGER_H_
