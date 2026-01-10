@@ -1,11 +1,10 @@
 #include "rt_server.h"
-#include "rt_http_parser.h"
 
+#include "rt_http_parser.h"
+#include "rt_client_queue.h"
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-
-#include <stdio.h> // TODO: Delete
 
 // --------------------------------------------------
 // PRIVATE
@@ -36,6 +35,67 @@ static char* recv_request(
     return buffer;
 }
 
+typedef struct {
+    rt_server *server;
+    rt_client_queue *queue;
+} worker_ctx;
+
+static void* worker_thread(
+    void *arg
+) {
+    worker_ctx *ctx = (worker_ctx*)arg;
+
+    while (1) {
+        // Get client
+        rt_socket client_fd = rt_queue_pop(ctx->queue);
+
+        // Recv HTTP request
+        ssize_t size_read;
+        char *req_str = recv_request(ctx->server, client_fd, &size_read);
+        if (!req_str) {
+            close(client_fd);
+            continue;
+        }
+
+        // Parse HTTP request
+        rt_req_data d;
+        rt_http_req_parser parser;
+        rt_init_http_parser(&parser, req_str, req_str + size_read);
+
+        if (rt_parse_req(&parser, &d) != RT_PARSE_OK) {
+            //rt_log(ctx->server->logger, LOG_ERROR, "Error parsing request");
+            close(client_fd);
+            free(req_str);
+            continue;
+        }
+
+        // Send HTTP response
+        // TODO: Refactor to return files
+        const char *resp =
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Length: 24\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "<h1>Hello World !!!</h1>";
+
+        size_t total_send = 0;
+        size_t resp_len = strlen(resp);
+
+        while (total_send < resp_len) {
+            ssize_t n = send(client_fd, resp + total_send, resp_len - total_send, 0);
+            if (n <= 0) {
+                rt_log(ctx->server->logger, LOG_ERROR, "Error sending response");
+                break;
+            }
+            total_send += (size_t)n;
+        }
+
+        close(client_fd);
+        free(req_str);
+    }
+    return NULL;
+}
+
 // --------------------------------------------------
 // PUBLIC
 // --------------------------------------------------
@@ -63,68 +123,37 @@ void rt_init_server(
 void rt_run_server(
     rt_server *server
 ) {
+    // Start lintening for connections
     if (listen(server->socket, LISTEN_BACKLOG_VAL) != 0) {
         rt_log(server->logger, LOG_ERROR, "Error setting up listen socket");
         exit(EXIT_FAILURE);
     }
 
+    // Create server queue context
+    rt_client_queue queue;
+    rt_init_client_queue(&queue);
+    worker_ctx ctx = {
+        .server = server,
+        .queue = &queue
+    };
+
+    // Init workers
+    pthread_t workers[WORKER_COUNT];
+    for (int i = 0; i < WORKER_COUNT; i++) {
+        pthread_create(&workers[i], NULL, worker_thread, &ctx);
+    }
+
     rt_log(server->logger, LOG_INFO, "Server started on port %d...", server->port);
 
+    // Run server
     while (1) {
-        // Accept client
         rt_socket client_fd = accept(server->socket, NULL, NULL);
         if (client_fd == INVALID_SOCKET) {
             rt_log(server->logger, LOG_ERROR, "Error accepting client");
             continue;
         }
 
-        // Read request
-        ssize_t size_read;
-        char *req_str = recv_request(server, client_fd, &size_read);
-        if (req_str == NULL) {
-            close(client_fd);
-            continue;
-        }
-
-        // Parse http request
-        rt_http_req_parser parser;
-        rt_req_data d;
-
-        rt_init_http_parser(&parser, req_str, req_str + size_read);
-        rt_parse_result r = rt_parse_req(&parser, &d);
-        if (r != RT_PARSE_OK) {
-            rt_log(server->logger, LOG_ERROR, "Error parsing request");
-            close(client_fd);
-            free(req_str);
-            continue;
-        }
-
-        // TODO: Delete this. Debug logs
-        printf("DATA:\n");
-
-        printf("  Method : |%.*s|\n", d.method_len, d.method);
-        printf("  Path   : |%.*s|\n", d.path_len, d.path);
-        printf("  Version: |%.*s|\n", d.version_len, d.version);
-
-        printf("HEADERS:\n");
-        for (int i = 0; i < d.header_count; i++) {
-            printf("  Header (%d) |%.*s| |%.*s|\n", i,
-                d.headers[i].name_len, d.headers[i].name,
-                d.headers[i].value_len, d.headers[i].value);
-        }
-
-        // Send response
-        const char *resp =
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Length: 21\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-            "<h1>Hello World!</h1>";
-
-        send(client_fd, resp, strlen(resp), 0);
-
-        // Cleanup
-        close(client_fd);
-        free(req_str);
+        // Add new client to queue
+        rt_queue_push(&queue, client_fd);
     }
 }
