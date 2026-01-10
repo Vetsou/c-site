@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 
 #include <stdio.h> // TODO: Delete
 
@@ -111,6 +112,16 @@ void rt_run_server(
                 d.headers[i].name_len, d.headers[i].name,
                 d.headers[i].value_len, d.headers[i].value);
         }
+
+        // Send response
+        const char *resp =
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Length: 21\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "<h1>Hello World!</h1>";
+
+        send(client_fd, resp, strlen(resp), 0);
 
         // Cleanup
         close(client_fd);
