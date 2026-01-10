@@ -16,11 +16,11 @@
 
 typedef struct {
     rt_socket socket;
-    const rt_logger *logger;
+    rt_logger *logger;
     int32_t port;
 } rt_server;
 
-void rt_init_server(rt_server *server, const rt_logger *logger, uint16_t port);
+void rt_init_server(rt_server *server, rt_logger *logger, uint16_t port);
 void rt_run_server(rt_server *server);
 
 #endif // _RT_SERVER_H_

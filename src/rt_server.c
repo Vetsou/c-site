@@ -2,6 +2,7 @@
 
 #include "rt_http_parser.h"
 #include "rt_client_queue.h"
+
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
@@ -63,7 +64,7 @@ static void* worker_thread(
         rt_init_http_parser(&parser, req_str, req_str + size_read);
 
         if (rt_parse_req(&parser, &d) != RT_PARSE_OK) {
-            //rt_log(ctx->server->logger, LOG_ERROR, "Error parsing request");
+            rt_log(ctx->server->logger, LOG_ERROR, "Error parsing request");
             close(client_fd);
             free(req_str);
             continue;
@@ -101,7 +102,7 @@ static void* worker_thread(
 // --------------------------------------------------
 void rt_init_server(
     rt_server *server,
-    const rt_logger *logger,
+    rt_logger *logger,
     uint16_t port
 ) {
     rt_socket fd = rt_socketTCP();
