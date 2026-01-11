@@ -7,35 +7,74 @@
 #include <unistd.h>
 #include <string.h>
 
-// --------------------------------------------------
-// PRIVATE
-// --------------------------------------------------
+// Config
 #define LISTEN_BACKLOG_VAL 32
+
+// --------------------------------------------------
+// PRIVATE (Recv/Send)
+// --------------------------------------------------
 
 static char* recv_request(
     rt_server *server,
     rt_socket client_fd,
-    ssize_t *read_size
+    rt_req_data *req_buffer
 ) {
+    // Create request buffer
     char *buffer = (char *)malloc(HTTP_MAX_REQ_SIZE + 1);
     if (buffer == NULL) {
         rt_log(server->logger, LOG_ERROR, "Error allocating memory for request");
         return NULL;
     }
 
+    // Read request
     ssize_t bytes_read = recv(client_fd, buffer, HTTP_MAX_REQ_SIZE, 0);
-
     if (bytes_read <= 0) {
         rt_log(server->logger, LOG_ERROR, "Error reading request");
         free(buffer);
         return NULL;
     }
 
-    *read_size = bytes_read;
     buffer[bytes_read] = '\0';
+
+    // Parse request
+    rt_http_req_parser parser;
+    rt_init_http_parser(&parser, buffer, buffer + bytes_read);
+
+    if (rt_parse_req(&parser, req_buffer) != RT_PARSE_OK) {
+        rt_log(server->logger, LOG_ERROR, "Error parsing request");
+        free(buffer);
+        return NULL;
+    }
+
     return buffer;
 }
 
+static int32_t send_response(
+    rt_socket client_fd
+) {
+    // TODO: Refactor to return files
+    const char *resp =
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Length: 24\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+        "<h1>Hello World !!!</h1>";
+
+    size_t total_send = 0;
+    size_t resp_len = strlen(resp);
+
+    while (total_send < resp_len) {
+        ssize_t n = send(client_fd, resp + total_send, resp_len - total_send, 0);
+        if (n <= 0) return -1;
+        total_send += (size_t)n;
+    }
+
+    return 0;
+}
+
+// --------------------------------------------------
+// PRIVATE (Accept client thread)
+// --------------------------------------------------
 typedef struct {
     rt_server *server;
     rt_client_queue *queue;
@@ -51,44 +90,19 @@ static void* worker_thread(
         rt_socket client_fd = rt_queue_pop(ctx->queue);
 
         // Recv HTTP request
-        ssize_t size_read;
-        char *req_str = recv_request(ctx->server, client_fd, &size_read);
+        rt_req_data req_buffer;
+        char *req_str = recv_request(ctx->server, client_fd, &req_buffer);
         if (!req_str) {
             close(client_fd);
             continue;
         }
 
-        // Parse HTTP request
-        rt_req_data d;
-        rt_http_req_parser parser;
-        rt_init_http_parser(&parser, req_str, req_str + size_read);
-
-        if (rt_parse_req(&parser, &d) != RT_PARSE_OK) {
-            rt_log(ctx->server->logger, LOG_ERROR, "Error parsing request");
+        // Send HTTP response
+        if (send_response(client_fd) != 0) {
+            rt_log(ctx->server->logger, LOG_ERROR, "Error sending response");
             close(client_fd);
             free(req_str);
             continue;
-        }
-
-        // Send HTTP response
-        // TODO: Refactor to return files
-        const char *resp =
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Length: 24\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-            "<h1>Hello World !!!</h1>";
-
-        size_t total_send = 0;
-        size_t resp_len = strlen(resp);
-
-        while (total_send < resp_len) {
-            ssize_t n = send(client_fd, resp + total_send, resp_len - total_send, 0);
-            if (n <= 0) {
-                rt_log(ctx->server->logger, LOG_ERROR, "Error sending response");
-                break;
-            }
-            total_send += (size_t)n;
         }
 
         close(client_fd);
