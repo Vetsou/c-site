@@ -1,6 +1,7 @@
 #include "rt_server.h"
 
 #include "rt_router.h"
+#include "rt_response.h"
 #include "rt_http_parser.h"
 #include "rt_client_queue.h"
 
@@ -12,8 +13,21 @@
 #define LISTEN_BACKLOG_VAL 32
 #define ROUTER_BUCKET_SIZE 128
 
+static void home_handler(
+    rt_server *server,
+    rt_socket client_fd,
+    const rt_req_data *req
+) {
+    rt_send_file_resp(
+        client_fd,
+        RT_STATUS_OK,
+        "text/html",
+        "./static/index.html"
+    );
+}
+
 // --------------------------------------------------
-// PRIVATE (Recv/Send)
+// PRIVATE (Send)
 // --------------------------------------------------
 
 static char* recv_request(
@@ -22,7 +36,7 @@ static char* recv_request(
     rt_req_data *req_buffer
 ) {
     // Create request buffer
-    char *buffer = (char *)malloc(HTTP_MAX_REQ_SIZE + 1);
+    char *buffer = malloc(HTTP_MAX_REQ_SIZE + 1);
     if (buffer == NULL) {
         rt_log(server->logger, LOG_ERROR, "Error allocating memory for request");
         return NULL;
@@ -51,29 +65,6 @@ static char* recv_request(
     return buffer;
 }
 
-static int32_t send_response(
-    rt_socket client_fd
-) {
-    // TODO: Refactor to return files
-    const char *resp =
-        "HTTP/1.1 200 OK\r\n"
-        "Content-Length: 24\r\n"
-        "Connection: close\r\n"
-        "\r\n"
-        "<h1>Hello World !!!</h1>";
-
-    size_t total_send = 0;
-    size_t resp_len = strlen(resp);
-
-    while (total_send < resp_len) {
-        ssize_t n = send(client_fd, resp + total_send, resp_len - total_send, 0);
-        if (n <= 0) return -1;
-        total_send += (size_t)n;
-    }
-
-    return 0;
-}
-
 // --------------------------------------------------
 // PRIVATE (Handle client thread)
 // --------------------------------------------------
@@ -100,8 +91,17 @@ static void* worker_thread(
             continue;
         }
 
-        // Send HTTP response
-        if (send_response(client_fd) != 0) {
+        // Find route
+        rt_route_handler handler = rt_router_find(
+            ctx->router,
+            req_buffer.path,
+            (size_t)req_buffer.path_len
+        );
+
+        // Render requested route
+        if (handler) {
+            handler(ctx->server, client_fd, &req_buffer);
+        } else {
             rt_log(ctx->server->logger, LOG_ERROR, "Error sending response");
             close(client_fd);
             free(req_str);
@@ -153,6 +153,8 @@ void rt_run_server(
         rt_log(server->logger, LOG_ERROR, "Error initializing router");
         exit(EXIT_FAILURE);
     }
+
+    rt_router_add(&router, "/home", home_handler);
 
     // Create server queue context
     rt_client_queue queue;

@@ -153,7 +153,7 @@ static rt_parse_result parse_version(
 
 static rt_parse_result parse_headers(
     rt_http_req_parser *p,
-    rt_header_data *headers,
+    rt_req_header_view *headers,
     int32_t *header_count
 ) {
     int32_t num_headers = 0;
@@ -176,7 +176,7 @@ static rt_parse_result parse_headers(
             return RT_INVALID_HEADER_FOLD;
         }
 
-        if (num_headers == HTTP_MAX_HEADER_LEN) {
+        if (num_headers == MAX_REQ_HEADER_LEN) {
             return RT_TOO_MANY_HEADERS;
         }
 

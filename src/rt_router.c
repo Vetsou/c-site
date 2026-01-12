@@ -28,10 +28,9 @@ int32_t rt_init_router(
   size_t bucket_count
 ) {
     r->buckets = calloc(bucket_count, sizeof(rt_route_entry*));
-
     if (!r->buckets) return -1;
-    r->bucket_count = bucket_count;
 
+    r->bucket_count = bucket_count;
     return 0;
 }
 
@@ -47,7 +46,13 @@ int32_t rt_router_add(
     rt_route_entry *entry = malloc(sizeof(*entry));
     if (!entry) return -1;
 
-    entry->path = strdup(path);
+    char *path_cpy = strdup(path);
+    if (!path_cpy) {
+        free(entry);
+        return -1;
+    }
+
+    entry->path = path_cpy;
     entry->path_len = len;
     entry->handler = handler;
 

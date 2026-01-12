@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define HTTP_MAX_HEADER_LEN 64
+#define MAX_REQ_HEADER_LEN 64
 
 /**
  * RT only supports status codes it may emit.
@@ -71,7 +71,7 @@ typedef struct {
     int32_t name_len;
     const char *value;
     int32_t value_len;
-} rt_header_data;
+} rt_req_header_view;
 
 
 typedef struct {
@@ -85,7 +85,7 @@ typedef struct {
 
     // Headers
     int32_t header_count;
-    rt_header_data headers[HTTP_MAX_HEADER_LEN];
+    rt_req_header_view headers[MAX_REQ_HEADER_LEN];
 } rt_req_data;
 
 
