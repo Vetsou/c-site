@@ -20,10 +20,15 @@ typedef struct rt_route_entry {
 typedef struct {
     rt_route_entry **buckets;
     size_t bucket_count;
+
+    // Custom routes
+    rt_route_handler error_handler;
 } rt_router;
 
 int32_t rt_init_router(rt_router *r, size_t bucket_count);
 int32_t rt_router_add(rt_router *r, const char *path, rt_route_handler handler);
 rt_route_handler rt_router_find(rt_router *r, const char *path, size_t path_len);
+
+int32_t rt_setup_all_routes(rt_router *r);
 
 #endif // _RT_ROUTER_H_

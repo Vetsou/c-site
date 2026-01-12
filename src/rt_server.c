@@ -1,7 +1,6 @@
 #include "rt_server.h"
 
 #include "rt_router.h"
-#include "rt_response.h"
 #include "rt_http_parser.h"
 #include "rt_client_queue.h"
 
@@ -12,19 +11,6 @@
 // Config
 #define LISTEN_BACKLOG_VAL 32
 #define ROUTER_BUCKET_SIZE 128
-
-static void home_handler(
-    rt_server *server,
-    rt_socket client_fd,
-    const rt_req_data *req
-) {
-    rt_send_file_resp(
-        client_fd,
-        RT_STATUS_OK,
-        "text/html",
-        "./static/index.html"
-    );
-}
 
 // --------------------------------------------------
 // PRIVATE (Send)
@@ -102,10 +88,8 @@ static void* worker_thread(
         if (handler) {
             handler(ctx->server, client_fd, &req_buffer);
         } else {
-            rt_log(ctx->server->logger, LOG_ERROR, "Error sending response");
-            close(client_fd);
-            free(req_str);
-            continue;
+            rt_log(ctx->server->logger, LOG_ERROR, "Error path %.*s not found", req_buffer.path_len, req_buffer.path);
+            ctx->router->error_handler(ctx->server, client_fd, &req_buffer);
         }
 
         close(client_fd);
@@ -154,7 +138,10 @@ void rt_run_server(
         exit(EXIT_FAILURE);
     }
 
-    rt_router_add(&router, "/home", home_handler);
+    if (rt_setup_all_routes(&router) != 0) {
+        rt_log(server->logger, LOG_ERROR, "Error adding routes to router");
+        exit(EXIT_FAILURE);
+    }
 
     // Create server queue context
     rt_client_queue queue;

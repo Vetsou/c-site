@@ -1,10 +1,29 @@
 #include "rt_router.h"
+#include "rt_response.h"
 
 #include <stdlib.h>
 #include <string.h>
 
 // --------------------------------------------------
-// PRIVATE
+// PRIVATE (Custom Routes)
+// --------------------------------------------------
+
+static void not_found_handler(
+    rt_server *server,
+    rt_socket client_fd,
+    const rt_req_data *req
+) {
+    (void)server; (void)req;
+    rt_send_file_resp(
+        client_fd,
+        RT_STATUS_NOT_FOUND,
+        "text/html",
+        "./static/not_found.html"
+    );
+}
+
+// --------------------------------------------------
+// PRIVATE (Hash)
 // --------------------------------------------------
 
 static uint64_t hash_path(
@@ -20,7 +39,7 @@ static uint64_t hash_path(
 }
 
 // --------------------------------------------------
-// PUBLIC
+// PUBLIC (Add/Find routes)
 // --------------------------------------------------
 
 int32_t rt_init_router(
@@ -31,6 +50,7 @@ int32_t rt_init_router(
     if (!r->buckets) return -1;
 
     r->bucket_count = bucket_count;
+    r->error_handler = not_found_handler;
     return 0;
 }
 
@@ -75,4 +95,36 @@ rt_route_handler rt_router_find(
         }
     }
     return NULL;
+}
+
+// --------------------------------------------------
+// PUBLIC (Routes)
+// --------------------------------------------------
+
+#define ADD_ROUTE_OR_FAIL(router, path, handler)          \
+    do {                                                  \
+        if (rt_router_add(router, path, handler) != 0) {  \
+            return -1;                                    \
+        }                                                 \
+    } while(0)
+
+static void home_handler(
+    rt_server *server,
+    rt_socket client_fd,
+    const rt_req_data *req
+) {
+    (void)server; (void)req;
+    rt_send_file_resp(
+        client_fd,
+        RT_STATUS_OK,
+        "text/html",
+        "./static/index.html"
+    );
+}
+
+int32_t rt_setup_all_routes(
+    rt_router *r
+) {
+    ADD_ROUTE_OR_FAIL(r, "/", home_handler);
+    return 0;
 }
