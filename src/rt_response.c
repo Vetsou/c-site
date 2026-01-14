@@ -9,7 +9,10 @@
 
 #define RESP_HEADERS_BUF_LEN 512
 
-int32_t rt_send_file_resp(
+// --------------------------------------------------
+// PRIVATE
+// --------------------------------------------------
+static int32_t rt_send_file_resp(
     rt_socket client_fd,
     const char *status,
     const char *content_type,
@@ -63,4 +66,21 @@ int32_t rt_send_file_resp(
     }
 
     return 0;
+}
+
+// --------------------------------------------------
+// PUBLIC
+// --------------------------------------------------
+
+void serve_static_file(
+    rt_socket client_fd,
+    const rt_req_data *req
+) {
+    (void)req;
+    rt_send_file_resp(
+        client_fd,
+        RT_STATUS_OK,
+        "text/html",
+        "./static/index.html"
+    );
 }

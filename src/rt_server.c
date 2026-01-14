@@ -1,7 +1,6 @@
 #include "rt_server.h"
 
-#include "rt_router.h"
-#include "rt_http_parser.h"
+#include "rt_response.h"
 #include "rt_client_queue.h"
 
 #include <stdlib.h>
@@ -10,7 +9,6 @@
 
 // Config
 #define LISTEN_BACKLOG_VAL 32
-#define ROUTER_BUCKET_SIZE 128
 
 // --------------------------------------------------
 // PRIVATE (Send)
@@ -57,7 +55,6 @@ static char* recv_request(
 typedef struct {
     rt_server *server;
     rt_client_queue *queue;
-    rt_router *router;
 } worker_ctx;
 
 static void* worker_thread(
@@ -77,20 +74,8 @@ static void* worker_thread(
             continue;
         }
 
-        // Find route
-        rt_route_handler handler = rt_router_find(
-            ctx->router,
-            req_buffer.path,
-            (size_t)req_buffer.path_len
-        );
-
-        // Render requested route
-        if (handler) {
-            handler(ctx->server, client_fd, &req_buffer);
-        } else {
-            rt_log(ctx->server->logger, LOG_ERROR, "Error path %.*s not found", req_buffer.path_len, req_buffer.path);
-            ctx->router->error_handler(ctx->server, client_fd, &req_buffer);
-        }
+        // Handle static file
+        serve_static_file(client_fd, &req_buffer);
 
         close(client_fd);
         free(req_str);
@@ -131,25 +116,12 @@ void rt_run_server(
         exit(EXIT_FAILURE);
     }
 
-    // Create router
-    rt_router router;
-    if (rt_init_router(&router, ROUTER_BUCKET_SIZE) != 0) {
-        rt_log(server->logger, LOG_ERROR, "Error initializing router");
-        exit(EXIT_FAILURE);
-    }
-
-    if (rt_setup_all_routes(&router) != 0) {
-        rt_log(server->logger, LOG_ERROR, "Error adding routes to router");
-        exit(EXIT_FAILURE);
-    }
-
     // Create server queue context
     rt_client_queue queue;
     rt_init_client_queue(&queue);
     worker_ctx ctx = {
         .server = server,
-        .queue = &queue,
-        .router = &router
+        .queue = &queue
     };
 
     // Init workers
