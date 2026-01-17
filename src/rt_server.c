@@ -3,6 +3,7 @@
 #include "rt_response.h"
 #include "rt_client_queue.h"
 
+#include <fcntl.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
@@ -55,12 +56,19 @@ static char* recv_request(
 typedef struct {
     rt_server *server;
     rt_client_queue *queue;
+    int32_t static_fd;
 } worker_ctx;
 
 static void* worker_thread(
     void *arg
 ) {
     worker_ctx *ctx = (worker_ctx*)arg;
+
+    ctx->static_fd = open("./static", O_RDONLY | O_DIRECTORY);
+    if (ctx->static_fd < 0) {
+        rt_log(ctx->server->logger, LOG_ERROR, "Failed to open static directory in worker thread");
+        return NULL;
+    }
 
     while (1) {
         // Get client
@@ -75,11 +83,13 @@ static void* worker_thread(
         }
 
         // Handle static file
-        serve_static_file(client_fd, &req_buffer);
+        serve_static_file(client_fd, &req_buffer, ctx->static_fd);
 
         close(client_fd);
         free(req_str);
     }
+
+    close(ctx->static_fd);
     return NULL;
 }
 

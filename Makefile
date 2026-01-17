@@ -29,8 +29,8 @@ CFLAGS_EXT += -O2 -DNDEBUG
 
 endif
 
-# Include timestamp POSIX
-CFLAGS_EXT += -D_POSIX_C_SOURCE=200809L
+# Include version flags
+CFLAGS_EXT += -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=500
 
 ########################################
 # PATHS

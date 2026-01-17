@@ -8,32 +8,38 @@
 #include <sys/stat.h>
 #include <sys/sendfile.h>
 
+#define REQ_MAX_PATH_LEN 512
+
 #define RESP_HEADERS_BUF_LEN 512
 #define RESP_TEXT_MAX_BODY_LEN 1024
 
 // --------------------------------------------------
 // PRIVATE
 // --------------------------------------------------
+static const char* mime_from_path(
+    const char *path
+) {
+    const char *ext = strrchr(path, '.');
+    if (!ext) return "application/octet-stream";
+
+    if (!strcmp(ext, ".html")) return "text/html";
+    if (!strcmp(ext, ".css"))  return "text/css";
+    if (!strcmp(ext, ".png"))  return "image/png";
+    if (!strcmp(ext, ".jpg"))  return "image/jpeg";
+    if (!strcmp(ext, ".svg"))  return "image/svg+xml";
+
+    return "application/octet-stream";
+}
+
 static int32_t send_file_resp(
     rt_socket client_fd,
     const char *status,
     const char *content_type,
-    const char *file_path
+    int file_fd,
+    size_t file_size
 ) {
-    int file_fd = open(file_path, O_RDONLY);
-    if (file_fd < 0) {
-        return -1;
-    }
-
-    struct stat st;
-    if (fstat(file_fd, &st) < 0 || !S_ISREG(st.st_mode)) {
-        close(file_fd);
-        return -1;
-    }
-
-    size_t file_size = (size_t)st.st_size;
-
     char header[RESP_HEADERS_BUF_LEN];
+
     int32_t header_len = snprintf(
         header, sizeof(header),
         "HTTP/1.1 %s\r\n"
@@ -160,23 +166,55 @@ static int32_t serve_err_reponse(
 
 void serve_static_file(
     rt_socket client_fd,
-    const rt_req_data *req
+    const rt_req_data *req,
+    int32_t static_fd
 ) {
-    (void)req;
+    char rel_path[REQ_MAX_PATH_LEN];
 
-    if (req->path_len == 1 && req->path[0] == '/') {
-        send_file_resp(
-            client_fd,
-            RT_STATUS_OK,
-            "text/html",
-            "./static/index.html"
-        );
+    // Check path size
+    if (!req->path || req->path_len <= 0 || req->path_len >= REQ_MAX_PATH_LEN) {
+        serve_err_reponse(client_fd, RT_STATUS_BAD_REQUEST, "Invalid path");
+        return;
     }
 
-    // No route found
-    serve_err_reponse(
-        client_fd,
-        RT_STATUS_NOT_FOUND,
-        "The requested path doesn't exist"
-    );
+    // Copy path
+    memcpy(rel_path, req->path, (size_t)req->path_len);
+    rel_path[req->path_len] = '\0';
+
+    // Check root dir and first char '/'
+    const char *file = strcmp(rel_path, "/") == 0
+        ? "index.html"
+        : (rel_path[0] == '/' ? rel_path + 1 : rel_path);
+
+    // Open requested file
+    int file_fd = openat(static_fd, file, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (file_fd < 0) {
+        serve_err_reponse(client_fd, RT_STATUS_NOT_FOUND, "File not found");
+        return;
+    }
+
+    // Check for symlink
+    struct stat st;
+    if (fstat(file_fd, &st) < 0 || !S_ISREG(st.st_mode)) {
+        close(file_fd);
+        serve_err_reponse(client_fd, RT_STATUS_FORBIDDEN, "Access denied");
+        return;
+    }
+
+    // Get mime and return
+    const char *mime = mime_from_path(file);
+    if (send_file_resp(
+            client_fd,
+            RT_STATUS_OK,
+            mime,
+            file_fd,
+            (size_t)st.st_size
+        ) < 0)
+    {
+        close(file_fd);
+        serve_err_reponse(client_fd, RT_STATUS_INTERNAL_ERR, "Failed to return file");
+        return;
+    }
+
+    close(file_fd);
 }
