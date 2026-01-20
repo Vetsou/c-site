@@ -6,7 +6,10 @@
 
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/sendfile.h>
+
+#include <linux/openat2.h>
 
 #define REQ_MAX_PATH_LEN 512
 
@@ -29,6 +32,26 @@ static const char* mime_from_path(
     if (!strcmp(ext, ".svg"))  return "image/svg+xml";
 
     return "application/octet-stream";
+}
+
+static int32_t openat2_safe(
+    int32_t dir_fd,
+    const char *path,
+    size_t flags
+) {
+    struct open_how how = {
+        .flags = flags,
+        .resolve =
+            RESOLVE_BENEATH |
+            RESOLVE_NO_SYMLINKS |
+            RESOLVE_NO_MAGICLINKS |
+            RESOLVE_NO_XDEV
+    };
+
+    long ret = syscall(SYS_openat2, dir_fd, path, &how, sizeof(how));
+
+    if (ret < 0) return -1;
+    return (int32_t)ret;
 }
 
 static int32_t send_file_resp(
@@ -187,7 +210,7 @@ void serve_static_file(
         : (rel_path[0] == '/' ? rel_path + 1 : rel_path);
 
     // Open requested file
-    int file_fd = openat(static_fd, file, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    int32_t file_fd = openat2_safe(static_fd, file, O_RDONLY | O_CLOEXEC);
     if (file_fd < 0) {
         serve_err_reponse(client_fd, RT_STATUS_NOT_FOUND, "File not found");
         return;

@@ -30,7 +30,7 @@ CFLAGS_EXT += -O2 -DNDEBUG
 endif
 
 # Include version flags
-CFLAGS_EXT += -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=500
+CFLAGS_EXT += -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=500 -D_GNU_SOURCE
 
 ########################################
 # PATHS
