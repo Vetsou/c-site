@@ -13,6 +13,7 @@ typedef enum {
     LOG_ERROR
 } rt_log_level;
 
+
 typedef struct {
     FILE *file;
     pthread_mutex_t mutex;

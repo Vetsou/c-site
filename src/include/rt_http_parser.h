@@ -6,45 +6,6 @@
 
 #define MAX_REQ_HEADER_LEN 64
 
-/**
- * RT only supports status codes it may emit.
- */
-typedef enum {
-    // 200s codes
-    RT_OK = 200,
-
-    // 400s codes
-    RT_BAD_REQUEST = 400,
-    RT_FORBIDDEN = 403,
-    RT_NOT_FOUND = 404,
-
-    // 500s codes
-    RT_INTERNAL_SERVER_ERROR = 500
-} rt_http_status;
-
-
-/**
- * RT doesn't need support for all HTTP methods.
- * This enum specifies the supported methods.
- */
-typedef enum {
-    RT_UNDEFINED_METHOD = -1,
-
-    RT_GET = 0
-} rt_http_method;
-
-
-/**
- * RT only accepts HTTP/1.0 and HTTP/1.1
- */
-typedef enum {
-    RT_UNDEFINED_VERSION = -1,
-
-    RT_HTTP_10 = 0,
-    RT_HTTP_11
-} rt_http_version;
-
-
 typedef enum {
     RT_UNKNOWN_ERR = -1,
     RT_PARSE_OK = 0,
