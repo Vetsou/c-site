@@ -176,7 +176,7 @@ static rt_parse_result parse_headers(
             return RT_INVALID_HEADER_FOLD;
         }
 
-        if (num_headers == MAX_REQ_HEADER_LEN) {
+        if (num_headers == REQ_MAX_HEADER_COUNT) {
             return RT_TOO_MANY_HEADERS;
         }
 

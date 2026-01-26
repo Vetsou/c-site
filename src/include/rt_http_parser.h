@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define MAX_REQ_HEADER_LEN 64
+#define REQ_MAX_HEADER_COUNT 64
 
 typedef enum {
     RT_UNKNOWN_ERR = -1,
@@ -46,7 +46,7 @@ typedef struct {
 
     // Headers
     int32_t header_count;
-    rt_req_header_view headers[MAX_REQ_HEADER_LEN];
+    rt_req_header_view headers[REQ_MAX_HEADER_COUNT];
 } rt_req_data;
 
 

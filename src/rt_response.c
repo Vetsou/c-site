@@ -11,10 +11,21 @@
 
 #include <linux/openat2.h>
 
+// --------------------------------------------------
+// DEFINES
+// --------------------------------------------------
+
+// Maximum size of file path in request
 #define REQ_MAX_PATH_LEN 512
 
+// Response headers buffer size
 #define RESP_HEADERS_BUF_LEN 512
+
+// Max size of body for text responses
 #define RESP_TEXT_MAX_BODY_LEN 1024
+
+// Max size of body for file responses
+#define RESP_MAX_FILE_SIZE (5 * 1024 * 1024)
 
 // --------------------------------------------------
 // PRIVATE
@@ -30,6 +41,7 @@ static const char* mime_from_path(
     if (!strcmp(ext, ".png"))  return "image/png";
     if (!strcmp(ext, ".jpg"))  return "image/jpeg";
     if (!strcmp(ext, ".svg"))  return "image/svg+xml";
+    if (!strcmp(ext, ".gif"))  return "image/gif";
 
     return "application/octet-stream";
 }
@@ -37,7 +49,7 @@ static const char* mime_from_path(
 static int32_t openat2_safe(
     int32_t dir_fd,
     const char *path,
-    size_t flags
+    uint64_t flags
 ) {
     struct open_how how = {
         .flags = flags,
@@ -59,9 +71,11 @@ static int32_t send_file_resp(
     const char *status,
     const char *content_type,
     int file_fd,
-    size_t file_size
+    off_t file_size
 ) {
     char header[RESP_HEADERS_BUF_LEN];
+
+    if (file_size < 0 || file_size > RESP_MAX_FILE_SIZE) return -1;
 
     int32_t header_len = snprintf(
         header, sizeof(header),
@@ -72,7 +86,7 @@ static int32_t send_file_resp(
         "\r\n",
         status,
         content_type,
-        file_size
+        (size_t)file_size
     );
 
     if (header_len < 0 || header_len >= (int32_t)sizeof(header)) {
@@ -89,8 +103,8 @@ static int32_t send_file_resp(
     }
 
     off_t offset = 0;
-    while ((size_t)offset < file_size) {
-        size_t remaining = file_size - (size_t)offset;
+    while (offset < file_size) {
+        size_t remaining = (size_t)(file_size - offset);
         ssize_t n = sendfile(client_fd, file_fd, &offset, remaining);
         if (n <= 0) return -1;
     }
@@ -102,10 +116,9 @@ static int32_t send_string_resp(
     rt_socket client_fd,
     const char *status,
     const char *content_type,
-    const char *body
+    const char *body,
+    size_t body_len
 ) {
-    size_t body_len = strlen(body);
-
     char header[RESP_HEADERS_BUF_LEN];
 
     int32_t header_len = snprintf(
@@ -127,7 +140,7 @@ static int32_t send_string_resp(
     size_t sent = 0;
     size_t header_len_st = (size_t)header_len; // SAFE because header_len >= 0
 
-    while (sent < (size_t)header_len_st) {
+    while (sent < header_len_st) {
         ssize_t n = send(client_fd, header + sent, header_len_st - sent, 0);
         if (n <= 0) return -1;
         sent += (size_t)n;
@@ -162,7 +175,7 @@ static int32_t serve_err_reponse(
             "<div>"
                 "<h1>%s</h1>"
                 "<p>%s</p>"
-                "<p><a href=\"/\">← Back to home</a></p>"
+                "<p><a href=\"/\">Back to home</a></p>"
             "</div>"
         "</body>"
         "</html>",
@@ -179,7 +192,8 @@ static int32_t serve_err_reponse(
         client_fd,
         status,
         "text/html",
-        body
+        body,
+        (size_t)body_len
     );
 }
 
@@ -209,7 +223,6 @@ void serve_static_file(
         ? "index.html"
         : (rel_path[0] == '/' ? rel_path + 1 : rel_path);
 
-    // Open requested file
     int32_t file_fd = openat2_safe(static_fd, file, O_RDONLY | O_CLOEXEC);
     if (file_fd < 0) {
         serve_err_reponse(client_fd, RT_STATUS_NOT_FOUND, "File not found");
@@ -224,16 +237,8 @@ void serve_static_file(
         return;
     }
 
-    // Get mime and return
     const char *mime = mime_from_path(file);
-    if (send_file_resp(
-            client_fd,
-            RT_STATUS_OK,
-            mime,
-            file_fd,
-            (size_t)st.st_size
-        ) < 0)
-    {
+    if (send_file_resp(client_fd, RT_STATUS_OK, mime, file_fd, st.st_size) < 0) {
         close(file_fd);
         serve_err_reponse(client_fd, RT_STATUS_INTERNAL_ERR, "Failed to return file");
         return;
