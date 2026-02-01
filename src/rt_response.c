@@ -28,20 +28,36 @@
 #define RESP_MAX_FILE_SIZE (5 * 1024 * 1024)
 
 // --------------------------------------------------
-// PRIVATE
+// PRIVATE (Utils)
 // --------------------------------------------------
+
+typedef enum {
+    RT_UNKNOWN_METHOD = -1,
+    RT_GET_METHOD = 0
+} req_method_t;
+
+static req_method_t get_request_method(
+    const rt_req_data *req
+) {
+    if (req->method_len == 3 && strncmp(req->method, "GET", 3) == 0) {
+        return RT_GET_METHOD;
+    }
+
+    return RT_UNKNOWN_METHOD;
+}
+
 static const char* mime_from_path(
     const char *path
 ) {
     const char *ext = strrchr(path, '.');
     if (!ext) return "application/octet-stream";
 
-    if (!strcmp(ext, ".html")) return "text/html";
-    if (!strcmp(ext, ".css"))  return "text/css";
-    if (!strcmp(ext, ".png"))  return "image/png";
-    if (!strcmp(ext, ".jpg"))  return "image/jpeg";
-    if (!strcmp(ext, ".svg"))  return "image/svg+xml";
-    if (!strcmp(ext, ".gif"))  return "image/gif";
+    if (!strncmp(ext, ".html", 4)) return "text/html";
+    if (!strncmp(ext, ".css", 3))  return "text/css";
+    if (!strncmp(ext, ".png", 3))  return "image/png";
+    if (!strncmp(ext, ".jpg", 3))  return "image/jpeg";
+    if (!strncmp(ext, ".svg", 3))  return "image/svg+xml";
+    if (!strncmp(ext, ".gif", 3))  return "image/gif";
 
     return "application/octet-stream";
 }
@@ -65,6 +81,10 @@ static int32_t openat2_safe(
     if (ret < 0) return -1;
     return (int32_t)ret;
 }
+
+// --------------------------------------------------
+// PRIVATE (Returning files)
+// --------------------------------------------------
 
 static int32_t send_file_resp(
     rt_socket client_fd,
@@ -198,10 +218,10 @@ static int32_t serve_err_reponse(
 }
 
 // --------------------------------------------------
-// PUBLIC
+// PRIVATE (Handling methods)
 // --------------------------------------------------
 
-void serve_static_file(
+static void handle_get(
     rt_socket client_fd,
     const rt_req_data *req,
     int32_t static_fd
@@ -245,4 +265,25 @@ void serve_static_file(
     }
 
     close(file_fd);
+}
+
+// --------------------------------------------------
+// PUBLIC
+// --------------------------------------------------
+
+void handle_request(
+    rt_socket client_fd,
+    const rt_req_data *req,
+    int32_t static_fd
+) {
+    switch (get_request_method(req)) {
+        case RT_GET_METHOD:
+            handle_get(client_fd, req, static_fd);
+            break;
+
+        case RT_UNKNOWN_METHOD:
+        default:
+            serve_err_reponse(client_fd, RT_METHOD_NOT_ALLOWED, "Unknown or not allowed method");
+            break;
+    }
 }

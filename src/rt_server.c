@@ -83,7 +83,7 @@ static void* worker_thread(
         }
 
         // Handle static file
-        serve_static_file(client_fd, &req_buffer, ctx->static_fd);
+        handle_request(client_fd, &req_buffer, ctx->static_fd);
 
         close(client_fd);
         free(req_str);
