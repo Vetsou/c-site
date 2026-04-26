@@ -13,4 +13,4 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Build Server
-        run: make build
+        run: make build BUILD_MODE=debug

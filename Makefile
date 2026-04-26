@@ -10,6 +10,8 @@ CFLAGS_EXT =
 
 ifeq ($(BUILD_MODE),dev)
 
+CFLAGS_EXT += -Wall               # All common warnings
+CFLAGS_EXT += -Wextra             # Extra warnings
 CFLAGS_EXT += -fanalyzer          # GCC static analyzer 
 CFLAGS_EXT += -Wshadow            # Warn when variables shadow others
 CFLAGS_EXT += -Wpointer-arith     # Warn on void*/function pointer arithmetic
@@ -55,7 +57,7 @@ TARGET = $(BIN_DIR)/c_server
 INC_FLAGS = -I$(SRC_DIR)/include
 
 CC = gcc
-CFLAGS = -std=c99 $(INC_FLAGS) -Wall -Wextra $(CFLAGS_EXT)
+CFLAGS = -std=c99 $(INC_FLAGS) $(CFLAGS_EXT)
 
 
 ########################################
