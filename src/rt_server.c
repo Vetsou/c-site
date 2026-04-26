@@ -140,7 +140,7 @@ void rt_init_server(
     server->port = port;
 }
 
-_Noreturn void rt_run_server(
+void rt_run_server(
     rt_server *server
 ) {
     // Start lintening for connections
