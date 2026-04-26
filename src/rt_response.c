@@ -7,7 +7,6 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
-#include <sys/sendfile.h>
 
 #include <linux/openat2.h>
 
@@ -22,10 +21,11 @@
 #define RESP_HEADERS_BUF_LEN 512
 
 // Max size of body for text responses
-#define RESP_TEXT_MAX_BODY_LEN 1024
+#define RESP_TEXT_MAX_BODY_LEN 2048
 
 // Max size of body for file responses
 #define RESP_MAX_FILE_SIZE (5 * 1024 * 1024)
+#define FILE_CHUNK_SIZE 8192
 
 // --------------------------------------------------
 // PRIVATE (Utils)
@@ -86,6 +86,40 @@ static int32_t openat2_safe(
 // PRIVATE (Returning files)
 // --------------------------------------------------
 
+static int32_t send_file_data(
+    rt_socket sock_fd,
+    int file_fd,
+    off_t *offset,
+    size_t count
+) {
+    char buf[FILE_CHUNK_SIZE];
+    size_t remaining = count;
+
+    while (remaining > 0) {
+        size_t to_read = remaining < sizeof(buf) ? remaining : sizeof(buf);
+
+        ssize_t r = pread(file_fd, buf, to_read, *offset);
+        if (r <= 0) return -1;
+
+        // SAFETY: We know (r > 0)
+        size_t bytes_to_send = (size_t)r;
+
+        size_t sent = 0;
+        while (sent < bytes_to_send) {
+            ssize_t n = send(sock_fd, buf + sent, bytes_to_send - sent, MSG_NOSIGNAL);
+            if (n <= 0) return -1;
+
+            // SAFETY: We know (n > 0)
+            sent += (size_t)n;
+        }
+
+        *offset += r;
+        remaining -= bytes_to_send;
+    }
+
+    return 0;
+}
+
 static int32_t send_file_resp(
     rt_socket client_fd,
     const char *status,
@@ -117,16 +151,14 @@ static int32_t send_file_resp(
     size_t header_len_st = (size_t)header_len; // SAFE because header_len >= 0
 
     while (sent < header_len_st) {
-        ssize_t n = send(client_fd, header + sent, header_len_st - sent, 0);
+        ssize_t n = send(client_fd, header + sent, header_len_st - sent, MSG_NOSIGNAL);
         if (n <= 0) return -1;
         sent += (size_t)n;
     }
 
     off_t offset = 0;
-    while (offset < file_size) {
-        size_t remaining = (size_t)(file_size - offset);
-        ssize_t n = sendfile(client_fd, file_fd, &offset, remaining);
-        if (n <= 0) return -1;
+    if (send_file_data(client_fd, file_fd, &offset, (size_t)file_size) != 0) {
+        return -1;
     }
 
     return 0;
@@ -161,14 +193,14 @@ static int32_t send_string_resp(
     size_t header_len_st = (size_t)header_len; // SAFE because header_len >= 0
 
     while (sent < header_len_st) {
-        ssize_t n = send(client_fd, header + sent, header_len_st - sent, 0);
+        ssize_t n = send(client_fd, header + sent, header_len_st - sent, MSG_NOSIGNAL);
         if (n <= 0) return -1;
         sent += (size_t)n;
     }
 
     sent = 0;
     while (sent < body_len) {
-        ssize_t n = send(client_fd, body + sent, body_len - sent, 0);
+        ssize_t n = send(client_fd, body + sent, body_len - sent, MSG_NOSIGNAL);
         if (n <= 0) return -1;
         sent += (size_t)n;
     }
@@ -176,7 +208,7 @@ static int32_t send_string_resp(
     return 0;
 }
 
-static int32_t serve_err_reponse(
+static int32_t serve_err_response(
     rt_socket client_fd,
     const char *status,
     const char *msg
@@ -230,7 +262,7 @@ static void handle_get(
 
     // Check path size
     if (!req->path || req->path_len <= 0 || req->path_len >= REQ_MAX_PATH_LEN) {
-        serve_err_reponse(client_fd, RT_STATUS_BAD_REQUEST, "Invalid path");
+        serve_err_response(client_fd, RT_STATUS_BAD_REQUEST, "Invalid path");
         return;
     }
 
@@ -245,7 +277,7 @@ static void handle_get(
 
     int32_t file_fd = openat2_safe(static_fd, file, O_RDONLY | O_CLOEXEC);
     if (file_fd < 0) {
-        serve_err_reponse(client_fd, RT_STATUS_NOT_FOUND, "File not found");
+        serve_err_response(client_fd, RT_STATUS_NOT_FOUND, "File not found");
         return;
     }
 
@@ -253,14 +285,14 @@ static void handle_get(
     struct stat st;
     if (fstat(file_fd, &st) < 0 || !S_ISREG(st.st_mode)) {
         close(file_fd);
-        serve_err_reponse(client_fd, RT_STATUS_FORBIDDEN, "Access denied");
+        serve_err_response(client_fd, RT_STATUS_FORBIDDEN, "Access denied");
         return;
     }
 
     const char *mime = mime_from_path(file);
     if (send_file_resp(client_fd, RT_STATUS_OK, mime, file_fd, st.st_size) < 0) {
         close(file_fd);
-        serve_err_reponse(client_fd, RT_STATUS_INTERNAL_ERR, "Failed to return file");
+        serve_err_response(client_fd, RT_STATUS_INTERNAL_ERR, "Failed to return file");
         return;
     }
 
@@ -283,7 +315,7 @@ void handle_request(
 
         case RT_UNKNOWN_METHOD:
         default:
-            serve_err_reponse(client_fd, RT_METHOD_NOT_ALLOWED, "Unknown or not allowed method");
+            serve_err_response(client_fd, RT_METHOD_NOT_ALLOWED, "Unknown or not allowed method");
             break;
     }
 }
