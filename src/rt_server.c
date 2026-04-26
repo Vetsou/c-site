@@ -12,6 +12,16 @@
 #define LISTEN_BACKLOG_VAL 32
 
 // --------------------------------------------------
+// PRIVATE (Server)
+// --------------------------------------------------
+
+static void close_server(
+    rt_server *server
+) {
+    close(server->socket);
+}
+
+// --------------------------------------------------
 // PRIVATE (Send)
 // --------------------------------------------------
 
@@ -59,16 +69,28 @@ typedef struct {
     int32_t static_fd;
 } worker_ctx;
 
+static void init_worker_ctx(
+    worker_ctx *ctx,
+    rt_server *server,
+    rt_client_queue *queue
+) {
+    int32_t readonly_fd = open("./static", O_RDONLY | O_DIRECTORY);
+    if (readonly_fd < 0) {
+        rt_log(server->logger, LOG_ERROR, "Failed to open 'static' directory for worker context");
+        exit(EXIT_FAILURE);
+    }
+
+    *ctx = (worker_ctx) {
+        .server = server,
+        .queue = queue,
+        .static_fd = readonly_fd
+    };
+}
+
 static void* worker_thread(
     void *arg
 ) {
     worker_ctx *ctx = (worker_ctx*)arg;
-
-    ctx->static_fd = open("./static", O_RDONLY | O_DIRECTORY);
-    if (ctx->static_fd < 0) {
-        rt_log(ctx->server->logger, LOG_ERROR, "Failed to open static directory in worker thread");
-        return NULL;
-    }
 
     while (1) {
         // Get client
@@ -89,7 +111,6 @@ static void* worker_thread(
         free(req_str);
     }
 
-    close(ctx->static_fd);
     return NULL;
 }
 
@@ -107,14 +128,16 @@ void rt_init_server(
         exit(EXIT_FAILURE);
     }
 
+    server->socket = fd;
+
     if (rt_bind_socket(fd, port) != 0) {
         rt_log(logger, LOG_ERROR, "Error binding server socket");
+        close_server(server);
         exit(EXIT_FAILURE);
     }
 
     server->logger = logger;
     server->port = port;
-    server->socket = fd;
 }
 
 void rt_run_server(
@@ -123,21 +146,24 @@ void rt_run_server(
     // Start lintening for connections
     if (listen(server->socket, LISTEN_BACKLOG_VAL) != 0) {
         rt_log(server->logger, LOG_ERROR, "Error setting up listen socket");
+        close_server(server);
         exit(EXIT_FAILURE);
     }
 
     // Create server queue context
     rt_client_queue queue;
     rt_init_client_queue(&queue);
-    worker_ctx ctx = {
-        .server = server,
-        .queue = &queue
-    };
+
+    worker_ctx ctx;
+    init_worker_ctx(&ctx, server, &queue);
 
     // Init workers
     pthread_t workers[WORKER_COUNT];
     for (int i = 0; i < WORKER_COUNT; i++) {
-        pthread_create(&workers[i], NULL, worker_thread, &ctx);
+        int32_t pthread_result = pthread_create(&workers[i], NULL, worker_thread, &ctx);
+        if (pthread_result != 0) {
+            rt_log(server->logger, LOG_ERROR, "Error creating worker thread. Code: %d.", pthread_result);
+        }
     }
 
     rt_log(server->logger, LOG_INFO, "Server started on port %d...", server->port);
@@ -153,4 +179,7 @@ void rt_run_server(
         // Add new client to queue
         rt_queue_push(&queue, client_fd);
     }
+
+    close(ctx.static_fd);
+    close_server(server);
 }
