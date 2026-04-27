@@ -19,6 +19,31 @@ static void close_server(
     rt_server *server
 ) {
     close(server->socket);
+    rt_free_logger(server->logger);
+}
+
+static int32_t server_accept_conn(
+    rt_server *server,
+    rt_socket *client_socket
+) {
+    rt_socket client_fd = accept(server->socket, NULL, NULL);
+    if (client_fd == INVALID_SOCKET) {
+        return -1;
+    }
+
+    struct timeval tv = {.tv_sec = 2, .tv_usec = 0};
+    if (setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+        close(client_fd);
+        return -1;
+    }
+
+    if (setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) < 0) {
+        close(client_fd);
+        return -1;
+    }
+
+    *client_socket = client_fd;
+    return 0;
 }
 
 // --------------------------------------------------
@@ -122,20 +147,19 @@ void rt_init_server(
     rt_logger *logger,
     uint16_t port
 ) {
-    rt_socket fd = rt_socketTCP();
+    rt_socket fd = rt_socket_tcp();
     if (fd == INVALID_SOCKET) {
         rt_log(logger, LOG_ERROR, "Error creating server socket");
         exit(EXIT_FAILURE);
     }
 
-    server->socket = fd;
-
     if (rt_bind_socket(fd, port) != 0) {
         rt_log(logger, LOG_ERROR, "Error binding server socket");
-        close_server(server);
+        close(fd);
         exit(EXIT_FAILURE);
     }
 
+    server->socket = fd;
     server->logger = logger;
     server->port = port;
 }
@@ -170,8 +194,8 @@ void rt_run_server(
 
     // Run server
     while (1) {
-        rt_socket client_fd = accept(server->socket, NULL, NULL);
-        if (client_fd == INVALID_SOCKET) {
+        rt_socket client_fd;
+        if (server_accept_conn(server, &client_fd) < 0) {
             rt_log(server->logger, LOG_ERROR, "Error accepting client");
             continue;
         }

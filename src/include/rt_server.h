@@ -11,7 +11,7 @@
  * Default is 4KB.
  */
 #ifndef HTTP_MAX_REQ_SIZE
-#define HTTP_MAX_REQ_SIZE (4*1024)
+#define HTTP_MAX_REQ_SIZE (8192)
 #endif // HTTP_MAX_REQ_SIZE
 
 typedef struct {
