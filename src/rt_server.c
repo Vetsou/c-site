@@ -31,7 +31,7 @@ static int32_t server_accept_conn(
         return -1;
     }
 
-    struct timeval tv = {.tv_sec = 2, .tv_usec = 0};
+    struct timeval tv = {.tv_sec = 1, .tv_usec = 0};
     if (setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
         close(client_fd);
         return -1;
@@ -151,6 +151,11 @@ void rt_init_server(
     if (fd == INVALID_SOCKET) {
         rt_log(logger, LOG_ERROR, "Error creating server socket");
         exit(EXIT_FAILURE);
+    }
+
+    int opt = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) != 0) {
+        rt_log(logger, LOG_WARN, "Could not set SO_REUSEADDR for server socket");
     }
 
     if (rt_bind_socket(fd, port) != 0) {
