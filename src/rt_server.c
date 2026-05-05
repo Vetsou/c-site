@@ -1,5 +1,6 @@
 #include "rt_server.h"
 
+#include "rt_dotenv.h"
 #include "rt_response.h"
 #include "rt_client_queue.h"
 
@@ -99,7 +100,9 @@ static void init_worker_ctx(
     rt_server *server,
     rt_client_queue *queue
 ) {
-    int32_t readonly_fd = open("./static", O_RDONLY | O_DIRECTORY);
+    const char *static_path = rt_getenv_or_default("RT_STATIC_FILES_PATH", "./static");
+
+    int32_t readonly_fd = open(static_path, O_RDONLY | O_DIRECTORY);
     if (readonly_fd < 0) {
         rt_log(server->logger, LOG_ERROR, "Failed to open 'static' directory for worker context");
         exit(EXIT_FAILURE);

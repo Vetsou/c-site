@@ -1,5 +1,6 @@
 # Build files
 bin
 
-# Log files
+# Server files
+.env
 logs.log

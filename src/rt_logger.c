@@ -44,7 +44,7 @@ void rt_init_logger(
 ) {
     FILE *file = fopen(filepath, "a");
     if (file == NULL) {
-        perror("failed to open log file");
+        perror("rt_init_logger");
         exit(EXIT_FAILURE);
     }
 
