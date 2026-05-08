@@ -7,6 +7,22 @@ The HTTP parser was written by studying **[picohttpparser](https://github.com/h2
 This project was created for learning purposes and is not intended for use as a real server.
 You are free to modify, fix, or use this code for any purpose.
 
+## Configuration
+You can use environment variables to customize the server.  
+You can also place a `.env` file in the root folder to load environment variables for the server process only.
+
+Example `.env` file:
+
+```bash
+# Path where logs should be saved on the local machine.
+# Defaults to './logs.log' if not defined.
+RT_LOGS_FILE_PATH=./my/logs/path/logs.log
+
+# Path to the folder that will be hosted by the server.
+# Defaults to './static' if not defined.
+RT_STATIC_FILES_PATH=./path/my/site
+```
+
 ## Usage
 Clone the repo and then:
 ```bash
