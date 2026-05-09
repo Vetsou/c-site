@@ -27,6 +27,15 @@ static char* trim_string(
     return str;
 }
 
+static int is_comment_or_empty(
+    const char *line
+) {
+    while (*line == ' ' || *line == '\t') {
+        line++;
+    }
+    return *line == '#' || *line == '\0';
+}
+
 int32_t rt_load_dotenv(
     const char *path
 ) {
@@ -44,8 +53,7 @@ int32_t rt_load_dotenv(
     size_t len = 0;
 
     while (getline(&line_buf, &len, fd) != -1) {
-        // Skip comments
-        if (line_buf[0] == '#' || line_buf[0] == '\0') {
+        if (is_comment_or_empty(line_buf)) {
             continue;
         }
 
