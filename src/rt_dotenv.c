@@ -37,7 +37,8 @@ static int is_comment_or_empty(
 }
 
 int32_t rt_load_dotenv(
-    const char *path
+    const char *path,
+    int32_t overwrite
 ) {
     if (path == NULL) {
         errno = EINVAL;
@@ -69,7 +70,7 @@ int32_t rt_load_dotenv(
             continue;
         }
 
-        if (setenv(key, value, 0) != 0) {
+        if (setenv(key, value, overwrite) != 0) {
             fclose(fd);
             free(line_buf);
             return -1;

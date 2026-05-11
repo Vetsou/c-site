@@ -8,16 +8,18 @@
 
 /**
  * Set maximum HTTP request size for safety reasons.
- * Default is 4KB.
+ * Default is 8KB.
  */
 #ifndef HTTP_MAX_REQ_SIZE
 #define HTTP_MAX_REQ_SIZE (8192)
 #endif // HTTP_MAX_REQ_SIZE
 
+#define WORKER_COUNT 8
+
 typedef struct {
     rt_socket socket;
     rt_logger *logger;
-    int32_t port;
+    uint16_t port;
 } rt_server;
 
 void rt_init_server(rt_server *server, rt_logger *logger, uint16_t port);

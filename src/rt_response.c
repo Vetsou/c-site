@@ -52,12 +52,12 @@ static const char* mime_from_path(
     const char *ext = strrchr(path, '.');
     if (!ext) return "application/octet-stream";
 
-    if (!strncmp(ext, ".html", 4)) return "text/html";
-    if (!strncmp(ext, ".css", 3))  return "text/css";
-    if (!strncmp(ext, ".png", 3))  return "image/png";
-    if (!strncmp(ext, ".jpg", 3))  return "image/jpeg";
-    if (!strncmp(ext, ".svg", 3))  return "image/svg+xml";
-    if (!strncmp(ext, ".gif", 3))  return "image/gif";
+    if (!strncmp(ext, ".html", 5)) return "text/html";
+    if (!strncmp(ext, ".css", 4))  return "text/css";
+    if (!strncmp(ext, ".png", 4))  return "image/png";
+    if (!strncmp(ext, ".jpg", 4))  return "image/jpeg";
+    if (!strncmp(ext, ".svg", 4))  return "image/svg+xml";
+    if (!strncmp(ext, ".gif", 4))  return "image/gif";
 
     return "application/octet-stream";
 }

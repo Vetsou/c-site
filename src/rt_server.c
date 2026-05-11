@@ -95,7 +95,7 @@ typedef struct {
     int32_t static_fd;
 } worker_ctx;
 
-static void init_worker_ctx(
+static int32_t init_worker_ctx(
     worker_ctx *ctx,
     rt_server *server,
     rt_client_queue *queue
@@ -105,7 +105,7 @@ static void init_worker_ctx(
     int32_t readonly_fd = open(static_path, O_RDONLY | O_DIRECTORY);
     if (readonly_fd < 0) {
         rt_log(server->logger, LOG_ERROR, "Failed to open 'static' directory for worker context");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     *ctx = (worker_ctx) {
@@ -113,6 +113,8 @@ static void init_worker_ctx(
         .queue = queue,
         .static_fd = readonly_fd
     };
+
+    return 0;
 }
 
 static void* worker_thread(
@@ -132,7 +134,7 @@ static void* worker_thread(
             continue;
         }
 
-        // Handle static file
+        // Handle server request
         handle_request(client_fd, &req_buffer, ctx->static_fd);
 
         close(client_fd);
@@ -187,7 +189,11 @@ void rt_run_server(
     rt_init_client_queue(&queue);
 
     worker_ctx ctx;
-    init_worker_ctx(&ctx, server, &queue);
+    if (init_worker_ctx(&ctx, server, &queue) != 0) {
+        rt_log(server->logger, LOG_ERROR, "Error creating wroker context");
+        close_server(server);
+        exit(EXIT_FAILURE);
+    }
 
     // Init workers
     pthread_t workers[WORKER_COUNT];

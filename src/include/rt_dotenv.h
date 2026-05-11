@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-int32_t rt_load_dotenv(const char *path);
+int32_t rt_load_dotenv(const char *path, int32_t overwrite);
 const char* rt_getenv_or_default(const char *name, const char *default_val);
 
 #endif // _RT_DOTENV_

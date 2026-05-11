@@ -40,11 +40,11 @@ static rt_parse_result parse_token(
     const char *tok_start = p->curr;
 
     while (true) {
+        CHECK_EOF();
         if (*p->curr == delim) break;
         if (!is_tok_char(*p->curr)) return RT_INVALID_CHAR;
 
         p->curr++;
-        CHECK_EOF();
     }
 
     *token = tok_start;
@@ -104,6 +104,7 @@ static rt_parse_result parse_path(
     const char *tok_start = p->curr;
 
     while (true) {
+        CHECK_EOF();
         if (*p->curr == ' ') break;
         
         if (!IS_PRINTABLE_ASCII(*p->curr)) {
@@ -111,7 +112,6 @@ static rt_parse_result parse_path(
         }
 
         p->curr++;
-        CHECK_EOF();
     }
 
     *buf = tok_start;
@@ -231,7 +231,6 @@ void rt_init_http_parser(
     p->end = end;
 
     p->curr = start;
-    p->nread = 0;
 }
 
 rt_parse_result rt_parse_req(

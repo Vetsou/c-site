@@ -6,7 +6,6 @@
 #include <stdint.h>
 #include <pthread.h>
 
-#define WORKER_COUNT 8
 #define QUEUE_CAPACITY 256
 
 typedef struct {

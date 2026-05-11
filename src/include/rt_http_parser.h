@@ -22,7 +22,6 @@ typedef struct {
     const char *start;
     const char *end;
 
-    size_t nread;
     char *curr;
 } rt_http_req_parser;
 

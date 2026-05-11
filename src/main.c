@@ -2,7 +2,7 @@
 #include "rt_server.h"
 
 int main(void) {
-    if (rt_load_dotenv(".env") != 0) {
+    if (rt_load_dotenv(".env", 1) != 0) {
         perror("rt_load_dotenv");
     }
 
